@@ -35,15 +35,27 @@ public class AutoCC {
     private static final Logger logger = LoggerFactory.getLogger(AutoCC.class);
     private OpenAiService openAiService;
 
+    private TopicRotation topicRotation;
+
+    // Constructor - called when we create a new AutoCC object
     public AutoCC(String openAiApiKey) {
+        // Initialize OpenAI service
         openAiService = new OpenAiService(openAiApiKey);
+
+        // Create our topic rotation system
+        topicRotation = new TopicRotation();
     }
 
     // Step 1: Generate Biology Fact
     public String generateBiologyFact() {
         try {
+
+            String topic = topicRotation.getNextTopic();
+
             ChatMessage systemMessage = new ChatMessage("system", "You are a helpful assistant.");
-            ChatMessage userMessage = new ChatMessage("user", "Provide an interesting and unique biology fact.");
+            ChatMessage userMessage = new ChatMessage("user",
+                    "Provide an interesting and unique biology fact about " + topic + " in Bulgarian. " +
+                            "Make it engaging and suitable for social media. Keep it under 280 characters.");
 
             ChatCompletionRequest chatCompletionRequest = ChatCompletionRequest.builder()
                     .model("gpt-4o-mini")
