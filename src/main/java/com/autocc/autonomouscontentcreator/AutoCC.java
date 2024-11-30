@@ -60,7 +60,7 @@ public class AutoCC {
             ChatCompletionRequest chatCompletionRequest = ChatCompletionRequest.builder()
                     .model("gpt-4o-mini")
                     .messages(Arrays.asList(systemMessage, userMessage))
-                    .maxTokens(60)
+                    .maxTokens(400)
                     .temperature(0.7)
                     .build();
 
