@@ -62,13 +62,13 @@ instagram.business.id=your_instagram_business_id
 ### 3. Building the Project
 
 ```bash
-mvn clean install
+mvn clean package
 ```
 
 ### 4. Running the Application
 
 ```bash
-java -jar target/autonomous-content-creator-1.0.jar
+java -jar target/AutonomousContentCreator-1.0-SNAPSHOT.jar
 ```
 
 ## Customizing Content Theme
