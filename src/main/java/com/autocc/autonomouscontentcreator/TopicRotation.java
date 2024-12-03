@@ -29,35 +29,87 @@ public class TopicRotation {
     // Initialize our list of biology topics
     private void initializeTopics() {
         topics = Arrays.asList(
-                // General Biology Fields
-                "cellular biology",    // Study of cells
-                "genetics",           // Study of genes and heredity
-                "evolution",          // How species change over time
-                "ecology",            // How organisms interact with environment
+                // Original Topics
+                "cellular biology",
+                "genetics",
+                "evolution",
+                "ecology",
+                "marine biology",
+                "plant biology",
+                "animal behavior",
+                "human anatomy",
+                "microbiology",
+                "immunology",
+                "neuroscience",
+                "biodiversity",
+                "conservation",
+                "molecular biology",
+                "biochemistry",
+                "developmental biology",
+                "environmental biology",
+                "zoology",
+                "parasitology",
+                "biotechnology",
 
-                // Specialized Fields
-                "marine biology",     // Study of ocean life
-                "plant biology",      // Study of plants
-                "animal behavior",    // How animals behave
-                "human anatomy",      // Structure of human body
+                // New Specialized Fields
+                "chronobiology",          // Study of biological rhythms
+                "biomechanics",           // Study of mechanics in biological systems
+                "systems biology",        // Holistic approach to biological systems
+                "synthetic biology",      // Engineering biological systems
+                "proteomics",            // Study of proteins on a large scale
+                "metabolomics",          // Study of metabolites in organisms
+                "bioinformatics",        // Computational analysis of biological data
+                "epigenetics",           // Study of heritable changes without DNA changes
+                "pharmacology",          // Study of drug interactions with organisms
+                "virology",              // Study of viruses
 
-                // Microscopic Biology
-                "microbiology",       // Study of microscopic organisms
-                "immunology",         // Study of immune system
-                "neuroscience",       // Study of nervous system
+                // Emerging Fields
+                "neuroimmunology",       // Interaction between nervous and immune systems
+                "biogeography",          // Study of species distribution
+                "biomimicry",            // Nature-inspired innovation
+                "astrobiology",          // Study of life in space
+                "paleobiology",          // Study of ancient life
+                "cryobiology",           // Study of life at low temperatures
+                "sociobiology",          // Biological basis of social behavior
+                "psychobiology",         // Biological basis of behavior
+                "ethnobiology",          // How cultures use nature
+                "radiobiology",          // Effects of radiation on life
 
-                // Environmental Biology
-                "biodiversity",       // Variety of life forms
-                "conservation",       // Protecting species and habitats
-                "molecular biology",  // Study of biological molecules
+                // Specialized Topics
+                "endocrinology",         // Study of hormones
+                "mycology",              // Study of fungi
+                "herpetology",           // Study of reptiles and amphibians
+                "ornithology",           // Study of birds
+                "entomology",            // Study of insects
+                "phycology",             // Study of algae
+                "nematology",            // Study of roundworms
+                "embryology",            // Study of embryos
+                "histology",             // Study of tissues
+                "cytogenetics",          // Study of chromosomes
 
-                // Additional Fields
-                "biochemistry",       // Chemical processes in living organisms
-                "developmental biology", // How organisms grow and develop
-                "environmental biology", // Relationship between life and environment
-                "zoology",            // Study of animals
-                "parasitology",       // Study of parasites
-                "biotechnology"       // Using biology in technology
+                // Modern Applications
+                "nanobiotechnology",     // Manipulation of biological systems at nano scale
+                "bioengineering",        // Engineering principles in biology
+                "computational biology",  // Computer modeling of biological systems
+                "genomics",              // Study of complete genetic material
+                "metagenomics",          // Study of genetic material from environmental samples
+                "glycobiology",          // Study of carbohydrates in organisms
+                "biogeochemistry",       // Study of chemical cycles in ecosystems
+                "neurogenetics",         // Genetic basis of neural development
+                "immunogenetics",        // Genetic basis of immune response
+                "phylogenetics",         // Study of evolutionary relationships
+
+                // Integrative Fields
+                "behavioral ecology",     // How behavior affects survival
+                "evolutionary medicine",  // Evolution's impact on health
+                "conservation genetics",  // Genetic aspects of conservation
+                "population genetics",    // Genetic variation in populations
+                "molecular ecology",      // Molecular techniques in ecology
+                "cognitive neuroscience", // Brain basis of cognition
+                "environmental genomics", // Genetic responses to environment
+                "molecular pathology",    // Molecular basis of disease
+                "developmental genetics", // Genetic control of development
+                "quantitative genetics"   // Statistical analysis of inheritance
         );
     }
 
