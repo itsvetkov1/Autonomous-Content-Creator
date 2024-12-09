@@ -49,13 +49,10 @@ public class AutoCC {
     // Step 1: Generate Biology Fact
     public String generateBiologyFact() {
         try {
+            TopicRotation.PromptContent promptContent = topicRotation.getNextContent();
 
-            String topic = topicRotation.getNextTopic();
-
-            ChatMessage systemMessage = new ChatMessage("system", "You are a helpful assistant.");
-            ChatMessage userMessage = new ChatMessage("user",
-                    "Provide an interesting and unique biology fact about " + topic + " in Bulgarian. " +
-                            "Make it engaging and suitable for social media. Keep it under 280 characters.");
+            ChatMessage systemMessage = new ChatMessage("system", promptContent.getSystemMessage());
+            ChatMessage userMessage = new ChatMessage("user", promptContent.getUserMessage());
 
             ChatCompletionRequest chatCompletionRequest = ChatCompletionRequest.builder()
                     .model("gpt-4o-mini")

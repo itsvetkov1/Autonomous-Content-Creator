@@ -6,23 +6,40 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class TopicRotation {
-    // Logger for debugging and monitoring
+    private static final String OUTPUT_LANGUAGE = "Bulgarian";
+
     private static final Logger logger = LoggerFactory.getLogger(TopicRotation.class);
-
-    // File where we'll save our current position in the topic list
     private static final String TOPIC_STATE_FILE = "topic_state.json";
+    private static final String PROMPT_STATE_FILE = "prompt_state.json";
 
-    // List to store all our biology topics
     private List<String> topics;
+    private List<PromptApproach> promptApproaches;
+    private int currentTopicIndex;
+    private int currentPromptIndex;
 
-    // Keeps track of which topic we're currently on
-    private int currentIndex;
+    // Inner class to represent different prompt approaches
+    public static class PromptApproach {
+        private final String systemMessage;
+        private final String userMessageTemplate;
 
-    // Constructor - called when we create a new TopicRotation object
+        public PromptApproach(String systemMessage, String userMessageTemplate) {
+            this.systemMessage = systemMessage;
+            this.userMessageTemplate = userMessageTemplate;
+        }
+
+        public String getSystemMessage() {
+            return systemMessage;
+        }
+
+        public String getUserMessage(String topic) {
+            return String.format(userMessageTemplate, topic);
+        }
+    }
+
     public TopicRotation() {
-        // Set up our list of topics
+
         initializeTopics();
-        // Load the last used position
+        initializePromptApproaches();
         loadState();
     }
 
@@ -113,58 +130,140 @@ public class TopicRotation {
         );
     }
 
-    // Load the last used topic position from our save file
-    private void loadState() {
-        // Create a File object pointing to our save file
-        File stateFile = new File(TOPIC_STATE_FILE);
+    private void initializePromptApproaches() {
+        promptApproaches = Arrays.asList(
+                // Base Approach - Enhanced with Clear Structure
+                new PromptApproach(
+                        String.format("You are a helpful assistant with expertise in making complex scientific concepts accessible. You communicate in fluent %s to ensure precise and natural explanations.", OUTPUT_LANGUAGE),
+                        String.format("Provide an interesting and unique biology fact about %%s in %s that reveals something unexpected or surprising. Focus on recent discoveries or lesser-known aspects. Keep it engaging and suitable for social media. Keep it under 280 characters.", OUTPUT_LANGUAGE)
+                ),
 
-        // Check if the file exists
+                // Question-Based Format
+                new PromptApproach(
+                        String.format("You are a helpful assistant skilled in Socratic teaching methods, communicating effectively in %s.", OUTPUT_LANGUAGE),
+                        String.format("Frame an interesting biology fact about %%s in %s as a 'Did you know?' question, followed by a clear, engaging answer. Make it suitable for social media and keep it under 280 characters.", OUTPUT_LANGUAGE)
+                ),
+
+                // Real-World Connection
+                new PromptApproach(
+                        String.format("You are a helpful assistant who excels at connecting scientific concepts to everyday experiences, speaking naturally in %s.", OUTPUT_LANGUAGE),
+                        String.format("Share an interesting biology fact about %%s in %s that connects to everyday life or current events. Make it relatable and engaging for social media. Keep it under 280 characters.", OUTPUT_LANGUAGE)
+                ),
+
+                // Visual-Oriented
+                new PromptApproach(
+                        String.format("You are a helpful assistant with a talent for creating vivid mental images, expressing them clearly in %s.", OUTPUT_LANGUAGE),
+                        String.format("Provide an interesting and unique biology fact about %%s in %s that can be easily visualized. Include a specific detail that would make a striking image. Keep it engaging for social media and under 280 characters.", OUTPUT_LANGUAGE)
+                ),
+
+                // Educational Impact
+                new PromptApproach(
+                        String.format("You are a helpful assistant focused on challenging misconceptions and deepening understanding, communicating effectively in %s.", OUTPUT_LANGUAGE),
+                        String.format("Share a fascinating biology fact about %%s in %s that challenges common misconceptions or reveals something counterintuitive. Keep it engaging for social media and under 280 characters.", OUTPUT_LANGUAGE)
+                )
+        );
+    }
+
+    // Get the current prompt approach along with the next topic
+    public PromptContent getNextContent() {
+        String topic = getNextTopic();
+        PromptApproach approach = getNextPromptApproach();
+
+        return new PromptContent(
+                approach.getSystemMessage(),
+                approach.getUserMessage(topic)
+        );
+    }
+
+    private PromptApproach getNextPromptApproach() {
+        PromptApproach approach = promptApproaches.get(currentPromptIndex);
+        currentPromptIndex = (currentPromptIndex + 1) % promptApproaches.size();
+        savePromptState();
+        logger.info("Selected prompt approach index: {}", currentPromptIndex);
+        return approach;
+    }
+
+    // Class to hold the generated content
+    public static class PromptContent {
+        private final String systemMessage;
+        private final String userMessage;
+
+        public PromptContent(String systemMessage, String userMessage) {
+            this.systemMessage = systemMessage;
+            this.userMessage = userMessage;
+        }
+
+        public String getSystemMessage() {
+            return systemMessage;
+        }
+
+        public String getUserMessage() {
+            return userMessage;
+        }
+    }
+
+    private void savePromptState() {
+        try (PrintWriter writer = new PrintWriter(new FileWriter(PROMPT_STATE_FILE))) {
+            writer.println(currentPromptIndex);
+        } catch (IOException e) {
+            logger.error("Error saving prompt state", e);
+        }
+    }
+
+    private void loadState() {
+        loadTopicState();
+        loadPromptState();
+    }
+
+    private void loadPromptState() {
+        File stateFile = new File(PROMPT_STATE_FILE);
         if (stateFile.exists()) {
             try (BufferedReader reader = new BufferedReader(new FileReader(stateFile))) {
-                // Read the number from the file and convert it to an integer
-                currentIndex = Integer.parseInt(reader.readLine().trim());
-
-                // If the number is too big, start over from 0
-                if (currentIndex >= topics.size()) {
-                    currentIndex = 0;
+                currentPromptIndex = Integer.parseInt(reader.readLine().trim());
+                if (currentPromptIndex >= promptApproaches.size()) {
+                    currentPromptIndex = 0;
                 }
             } catch (IOException e) {
-                // If there's any error, log it and start from 0
-                logger.error("Error loading topic state", e);
-                currentIndex = 0;
+                logger.error("Error loading prompt state", e);
+                currentPromptIndex = 0;
             }
         } else {
-            // If file doesn't exist, start from 0
-            currentIndex = 0;
+            currentPromptIndex = 0;
         }
     }
 
-    // Save our current position to the file
-    private void saveState() {
+    // Original methods remain the same but renamed for clarity
+    private void loadTopicState() {
+        File stateFile = new File(TOPIC_STATE_FILE);
+        if (stateFile.exists()) {
+            try (BufferedReader reader = new BufferedReader(new FileReader(stateFile))) {
+                currentTopicIndex = Integer.parseInt(reader.readLine().trim());
+                if (currentTopicIndex >= topics.size()) {
+                    currentTopicIndex = 0;
+                }
+            } catch (IOException e) {
+                logger.error("Error loading topic state", e);
+                currentTopicIndex = 0;
+            }
+        } else {
+            currentTopicIndex = 0;
+        }
+    }
+
+    private String getNextTopic() {
+        String topic = topics.get(currentTopicIndex);
+        currentTopicIndex = (currentTopicIndex + 1) % topics.size();
+        saveTopicState();
+        logger.info("Selected topic: {}", topic);
+        return topic;
+    }
+
+    private void saveTopicState() {
         try (PrintWriter writer = new PrintWriter(new FileWriter(TOPIC_STATE_FILE))) {
-            // Write the current index to the file
-            writer.println(currentIndex);
+            writer.println(currentTopicIndex);
         } catch (IOException e) {
-            // Log any errors that occur
             logger.error("Error saving topic state", e);
         }
-    }
-
-    // Get the next topic in the rotation
-    public String getNextTopic() {
-        // Get the current topic
-        String topic = topics.get(currentIndex);
-
-        // Move to next topic, loop back to 0 if we reach the end
-        currentIndex = (currentIndex + 1) % topics.size();
-
-        // Save our new position
-        saveState();
-
-        // Log which topic we're using
-        logger.info("Selected topic: {}", topic);
-
-        return topic;
     }
 
     // Randomly shuffle the order of topics
