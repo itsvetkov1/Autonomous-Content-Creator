@@ -3,7 +3,7 @@ package com.autocc.autonomouscontentcreator;
 import com.theokanning.openai.completion.chat.ChatCompletionRequest;
 import com.theokanning.openai.completion.chat.ChatMessage;
 import com.theokanning.openai.service.OpenAiService;
-import com.theokanning.openai.completion.CompletionRequest;
+import com.theokanning.openai.image.CreateImageRequest;
 import com.facebook.ads.sdk.APIContext;
 import com.facebook.ads.sdk.APIException;
 import com.facebook.ads.sdk.Page;
@@ -28,25 +28,52 @@ import java.net.http.HttpResponse;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-
+import java.time.Duration;
+import java.nio.file.Files;
+import java.util.stream.Collectors;
 import javax.imageio.ImageIO;
 
+/**
+ * Main class handling the autonomous content creation and posting process.
+ * This class integrates OpenAI's GPT and DALL-E services with Facebook posting capabilities.
+ */
 public class AutoCC {
     private static final Logger logger = LoggerFactory.getLogger(AutoCC.class);
-    private OpenAiService openAiService;
+    private static final String DALLE_API_URL = "https://api.openai.com/v1/images/generations";
+    private static final Duration TIMEOUT = Duration.ofSeconds(120);
 
-    private TopicRotation topicRotation;
+    private final OpenAiService openAiService;
+    private final TopicRotation topicRotation;
+    private final LocalImageHandler imageHandler;
+    private final ImgurUploader imgurUploader;
+    private final String openAiApiKey;
+    private final HttpClient httpClient;
 
-    // Constructor - called when we create a new AutoCC object
+    /**
+     * Initializes the AutoCC system with necessary services and configurations.
+     * @param openAiApiKey The API key for OpenAI services
+     */
     public AutoCC(String openAiApiKey) {
-        // Initialize OpenAI service
-        openAiService = new OpenAiService(openAiApiKey);
+        this.openAiApiKey = openAiApiKey;
+        this.openAiService = new OpenAiService(openAiApiKey);
+        this.topicRotation = new TopicRotation();
+        this.imageHandler = new LocalImageHandler();
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(TIMEOUT)
+                .build();
 
-        // Create our topic rotation system
-        topicRotation = new TopicRotation();
+        // Initialize Imgur uploader with client ID from properties
+        String imgurClientId = PropertiesConfig.getProperty("imgur.client.id");
+        if (imgurClientId == null || imgurClientId.trim().isEmpty()) {
+            logger.warn("Imgur client ID not configured. Image posting may not work correctly.");
+        }
+        this.imgurUploader = new ImgurUploader(imgurClientId);
     }
 
-    // Step 1: Generate Biology Fact
+    /**
+     * Generates a biology fact using GPT model and topic rotation system.
+     * @return A generated biology fact, or null if generation fails
+     */
     public String generateBiologyFact() {
         try {
             TopicRotation.PromptContent promptContent = topicRotation.getNextContent();
@@ -76,154 +103,147 @@ public class AutoCC {
         }
     }
 
-    // Step 2: Post to Facebook
-    public void postToFacebook(String pageAccessToken, String pageId, String message) {
-        APIContext context = new APIContext(pageAccessToken);
+    /**
+     * Generates an image using DALL-E based on the provided prompt.
+     * @param prompt The text prompt to generate an image from
+     * @return Path to the saved image file, or null if generation fails
+     */
+    public String generateImage(String prompt) {
         try {
-            new Page(pageId, context).createFeed()
-                    .setMessage(message)
-                    .execute();
-            logger.info("Successfully posted to Facebook.");
-        } catch (APIException e) {
-            logger.error("Error posting to Facebook.", e);
-        }
-    }
+            String enhancedPrompt = createEnhancedPrompt(prompt);
+            logger.info("Enhanced prompt for image generation: {}", enhancedPrompt);
 
-    // Step 3: Create Image with Text
-    public String createImageWithText(String text) {
-        int width = 800;
-        int height = 800;
-        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g2d = image.createGraphics();
+            String requestBody = String.format("""
+                {
+                    "model": "dall-e-3",
+                    "prompt": "%s",
+                    "n": 1,
+                    "size": "1024x1024",
+                    "quality": "standard",
+                    "style": "vivid",
+                    "response_format": "url"
+                }
+                """, enhancedPrompt.replace("\"", "\\\""));
 
-        // Fill background with white color
-        g2d.setColor(Color.WHITE);
-        g2d.fillRect(0, 0, width, height);
-
-        // Set text properties
-        g2d.setColor(Color.BLACK);
-        g2d.setFont(new Font("Arial", Font.BOLD, 24));
-
-        // Split text into lines if too long
-        String[] lines = splitTextIntoLines(text, 40);
-
-        // Calculate starting position
-        FontMetrics fm = g2d.getFontMetrics();
-        int lineHeight = fm.getHeight();
-        int totalTextHeight = lines.length * lineHeight;
-        int y = (height - totalTextHeight) / 2 + fm.getAscent();
-
-        for (String line : lines) {
-            int textWidth = fm.stringWidth(line);
-            int x = (width - textWidth) / 2;
-            g2d.drawString(line, x, y);
-            y += lineHeight;
-        }
-
-        g2d.dispose();
-
-        String filePath = "biology_fact.jpg";
-        try {
-            ImageIO.write(image, "jpg", new File(filePath));
-            logger.info("Image created at: {}", filePath);
-            return filePath;
-        } catch (IOException e) {
-            logger.error("Error creating image with text.", e);
-            return null;
-        }
-    }
-
-    private String[] splitTextIntoLines(String text, int maxLineLength) {
-        String[] words = text.split(" ");
-        StringBuilder sb = new StringBuilder();
-        java.util.List<String> lines = new java.util.ArrayList<>();
-        for (String word : words) {
-            if (sb.length() + word.length() + 1 > maxLineLength) {
-                lines.add(sb.toString());
-                sb = new StringBuilder();
-            }
-            sb.append(word).append(" ");
-        }
-        lines.add(sb.toString().trim());
-        return lines.toArray(new String[0]);
-    }
-
-    // Step 4: Post to Instagram
-    public void postToInstagram(String instagramAccessToken, String instagramBusinessId, String imageUrl, String caption) {
-        try {
-            // Step 1: Create Media Object
-            String mediaCreationEndpoint = String.format(
-                    "https://graph.facebook.com/v17.0/%s/media",
-                    instagramBusinessId
-            );
-
-            Map<String, String> params = new HashMap<>();
-            params.put("image_url", imageUrl);
-            params.put("caption", caption);
-            params.put("access_token", instagramAccessToken);
-
-            HttpClient client = HttpClient.newHttpClient();
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(mediaCreationEndpoint))
-                    .header("Content-Type", "application/x-www-form-urlencoded")
-                    .POST(ofFormData(params))
+                    .uri(URI.create(DALLE_API_URL))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + openAiApiKey)
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                     .build();
 
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            String mediaId = parseMediaId(response.body());
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
-            if (mediaId == null) {
-                logger.error("Failed to create media object on Instagram.");
-                return;
+            if (response.statusCode() != 200) {
+                logger.error("DALL-E API request failed with status code: {} and message: {}",
+                        response.statusCode(), response.body());
+                return null;
             }
 
-            // Step 2: Publish Media
-            String publishEndpoint = String.format(
-                    "https://graph.facebook.com/v17.0/%s/media_publish",
-                    instagramBusinessId
-            );
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode jsonResponse = mapper.readTree(response.body());
+            String imageUrl = jsonResponse.get("data").get(0).get("url").asText();
 
-            Map<String, String> publishParams = new HashMap<>();
-            publishParams.put("creation_id", mediaId);
-            publishParams.put("access_token", instagramAccessToken);
-
-            HttpRequest publishRequest = HttpRequest.newBuilder()
-                    .uri(URI.create(publishEndpoint))
-                    .header("Content-Type", "application/x-www-form-urlencoded")
-                    .POST(ofFormData(publishParams))
-                    .build();
-
-            HttpResponse<String> publishResponse = client.send(publishRequest, HttpResponse.BodyHandlers.ofString());
-
-            logger.info("Successfully posted to Instagram.");
+            return imageHandler.saveImage(imageUrl);
         } catch (Exception e) {
-            logger.error("Error posting to Instagram.", e);
-        }
-    }
-
-    private static HttpRequest.BodyPublisher ofFormData(Map<String, String> data) {
-        var builder = new StringBuilder();
-        for (Map.Entry<String, String> entry : data.entrySet()) {
-            if (builder.length() > 0) {
-                builder.append("&");
-            }
-            builder.append(URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8));
-            builder.append("=");
-            builder.append(URLEncoder.encode(entry.getValue(), StandardCharsets.UTF_8));
-        }
-        return HttpRequest.BodyPublishers.ofString(builder.toString());
-    }
-
-    private String parseMediaId(String responseBody) {
-        ObjectMapper mapper = new ObjectMapper();
-        try {
-            JsonNode root = mapper.readTree(responseBody);
-            String mediaId = root.path("id").asText();
-            logger.info("Media ID received: {}", mediaId);
-            return mediaId.isEmpty() ? null : mediaId;
-        } catch (IOException e) {
-            logger.error("Error parsing media ID from response.", e);
+            logger.error("Error generating image with DALL-E.", e);
             return null;
         }
+    }
+
+    /**
+     * Posts content to Facebook, optionally including an image.
+     * The image is first uploaded to Imgur to obtain a public URL.
+     */
+    public void postToFacebook(String pageAccessToken, String pageId, String message, String imagePath) {
+        try {
+            if (imagePath != null && !imagePath.isEmpty()) {
+                File imageFile = new File(imagePath);
+                if (!imageFile.exists()) {
+                    logger.warn("Image file not found at path: {}. Falling back to text-only post.", imagePath);
+                    createTextOnlyPost(pageAccessToken, pageId, message);
+                    return;
+                }
+
+                // Upload to Imgur and get public URL
+                String imgurUrl = imgurUploader.uploadImage(imagePath);
+                if (imgurUrl == null) {
+                    logger.error("Failed to upload image to Imgur. Falling back to text-only post.");
+                    createTextOnlyPost(pageAccessToken, pageId, message);
+                    return;
+                }
+
+                // Post to Facebook with the Imgur URL
+                APIContext context = new APIContext(pageAccessToken);
+                new Page(pageId, context).createFeed()
+                        .setMessage(message)
+                        .setLink(imgurUrl)
+                        .execute();
+
+                logger.info("Successfully posted to Facebook with Imgur image URL: {}", imgurUrl);
+            } else {
+                createTextOnlyPost(pageAccessToken, pageId, message);
+            }
+        } catch (APIException e) {
+            logger.error("Error during Facebook post process: {}", e.getMessage());
+            try {
+                createTextOnlyPost(pageAccessToken, pageId, message);
+            } catch (APIException ae) {
+                logger.error("Failed to create fallback text-only post: {}", ae.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Posts to Instagram using image URL from Imgur.
+     * Note: This method is prepared for future implementation when Instagram posting is needed.
+     */
+    public void postToInstagram(String instagramAccessToken, String instagramBusinessId, String imagePath, String caption) {
+        try {
+            if (imagePath != null && !imagePath.isEmpty()) {
+                String imgurUrl = imgurUploader.uploadImage(imagePath);
+                if (imgurUrl == null) {
+                    logger.error("Failed to upload image to Imgur. Instagram post cancelled.");
+                    return;
+                }
+
+                // TODO: Implement Instagram posting using the Imgur URL
+                logger.info("Image uploaded to Imgur successfully. URL: {}", imgurUrl);
+                logger.info("Instagram posting functionality to be implemented.");
+            }
+        } catch (Exception e) {
+            logger.error("Error posting to Instagram: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Creates a text-only post on Facebook.
+     */
+    private void createTextOnlyPost(String pageAccessToken, String pageId, String message) throws APIException {
+        APIContext context = new APIContext(pageAccessToken);
+        new Page(pageId, context).createFeed()
+                .setMessage(message)
+                .execute();
+        logger.info("Successfully posted text-only content to Facebook.");
+    }
+
+    /**
+     * Enhances the original prompt for better image generation results.
+     */
+    private String createEnhancedPrompt(String originalPrompt) {
+        return String.format(
+                "Create a detailed scientific illustration in the style of a biology textbook showing: %s. " +
+                        "The illustration should be clear, accurate, and educational, with a clean background. " +
+                        "Use realistic colors and proper anatomical/biological detail. " +
+                        "Include subtle labels or indicators where appropriate to highlight key features.",
+                originalPrompt
+        );
+    }
+
+    /**
+     * Cleans up old generated images to manage disk space.
+     */
+    public void cleanupOldImages(int daysToKeep) {
+        imageHandler.cleanupOldImages(daysToKeep);
     }
 }
